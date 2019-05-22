@@ -8,12 +8,15 @@ import matplotlib.pyplot as plt
 spam_counter = 0
 ham_counter = 0
 spam_classifier = 0.5
-stop_word_classifier = 2
+stop_word_classifier = 400
+laplace = 1
+classes = 0
 
 class Email:
-    def __init__(self, words, isSpam):
+    def __init__(self, words, isSpam, googleCsfc):
         self.words = words
         self.isSpam = isSpam
+        self.googleCsfc = googleCsfc
 
 
 ## ------------------------- UTILITÁRIOS ------------------------- ##
@@ -42,13 +45,15 @@ def read(path, isSpam):
     emails = []
     for txt in os.listdir(path):
         try:
-            with open(os.path.join(path, txt), "r", encoding='utf8') as file:
+            with open(os.path.join(path, txt), "r", encoding='ISO-8859-1') as file:
                 line = file.read()
+                gClassification = line[0]
+                line = line[1:]
                 line = normalize(line)
                 line = line.split(' ')
-                email = Email(line, isSpam)
+                email = Email(line, isSpam, gClassification)
                 emails.append(email)
-        except e:
+        except Exception as e:
             print(e)
 
     return emails
@@ -79,8 +84,7 @@ def split_sets(email_list):
 def getStopWords(word_collection):
     stop_words = []
 
-    all_words = []
-    all_words_counter = []
+    all_words = {}
 
     for word in word_collection:
         total =  word_collection[word]["total"]
@@ -88,10 +92,9 @@ def getStopWords(word_collection):
         if total >= stop_word_classifier and not isBiased(total, spam_freq):
             stop_words.append(word)
 
-        all_words.append(word)
-        all_words_counter.append(total)
+        all_words[word] = total
 
-    generateGraph(all_words, all_words_counter)    
+    generateGraph(all_words)    
     return stop_words
 
 
@@ -108,12 +111,24 @@ def isBiased(total, spam_freq):
 
 # Plota um gráfico com frequência de cada palavra
 
-def generateGraph(words, counter):
-  
-    y = np.arange(len(words))
+def generateGraph(words):
 
-    plt.bar(y, counter, align='center', alpha=0.5)
-    plt.xticks(y, words, rotation='vertical')
+    total = 0 
+    for key, value in words.items():
+        total += value
+    
+    avg = total/len(words)
+    
+    x = []
+    y = []
+    
+    for key, value in words.items():
+        if value >= avg*10:
+            x.append(value)
+            y.append(key)
+   
+    plt.bar(y, x, align='center', alpha=0.5)
+    plt.xticks(rotation='vertical')
     plt.ylabel('Frequency')
     plt.title('Words frequency')
 
@@ -157,9 +172,14 @@ def training(emails):
                 else:
                     word_collection[word] = {"total": 1, "spam": 0}
 
+    global classes
+    classes = len(word_collection.keys())
+    
     for email in emails:
         for word in email.words:
             setProbabilities(word_collection, word)
+
+    
 
     return word_collection
 
@@ -181,8 +201,9 @@ def setProbabilities(word_collection, word):
     prob_spam = spam_counter / total_emails
     prob_ham = ham_counter / total_emails
 
-    result = (prob_word_in_spam * prob_spam) / ((prob_word_in_spam * prob_spam) + (prob_word_in_ham * prob_ham))
+    result = ((prob_word_in_spam * prob_spam)) / ((prob_word_in_spam * prob_spam) + (prob_word_in_ham * prob_ham))
 
+    result += laplace/classes
     word_collection[word]["probability"] = result
 
 
@@ -193,20 +214,24 @@ def setProbabilities(word_collection, word):
 def test(word_collection, emails):
     
     score = 0
-
+    gScore = 0
     for email in emails:
         p = []
         for word in email.words:
             
             if word in word_collection:
-              p.append(word_collection[word]["probability"])
+                p.append(word_collection[word]["probability"])
+            else:
+                probability = laplace / classes
+                p.append(probability)
+            
 
         if classify(p) == email.isSpam:
             score += 1
-    
+        gScore += email.googleCsfc
     accuracy = score/len(emails)
-
-    return accuracy
+    gAccuracy = gScore/len(emails)
+    return accuracy, gAccuracy
 
 
 # Define a probabilidade de um email ser spam, dada a probabilidade de suas palavras serem spam
@@ -230,13 +255,15 @@ def main():
     (training_set, testing_set) = split_sets(email_list)
    
     word_collection = training(training_set)
-    accuracy = test(word_collection, testing_set)
+    accuracy, gAccuracy = test(word_collection, testing_set)
     print('Acurácia inicial: ', accuracy)
+    print('Acurácia Gmail: ', gAccuracy)
 
     stop_words = getStopWords(word_collection)
     removeStopWords(testing_set, stop_words)
-    accuracy = test(word_collection, testing_set)
+    accuracy, gAccuracy = test(word_collection, testing_set)
     print('Acurácia (sem stop-words): ', accuracy)
+    print('Acurácia Gmail: ', gAccuracy)
 
 
 main()
