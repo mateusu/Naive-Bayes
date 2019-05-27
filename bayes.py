@@ -4,11 +4,12 @@ import unicodedata
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 spam_counter = 0
 ham_counter = 0
 spam_classifier = 0.5
-stop_word_classifier = 400
+stop_word_classifier = 300
 laplace = 1
 classes = 0
 
@@ -50,9 +51,9 @@ def read(path, isSpam):
                 gClassification = line[0]
                 line = line[1:]
                 line = normalize(line)
-                line = line.split(' ')
                 email = Email(line, isSpam, gClassification)
                 emails.append(email)
+
         except Exception as e:
             print(e)
 
@@ -68,6 +69,10 @@ def normalize(text):
     text = text.replace('\n', ' ')
     text = re.sub('[^A-Za-z0-9 ]+', '', text)
     text = re.sub("\s\s+" , " ", text)
+    text = text.split(' ')
+    for i in range(len(text) -1):
+        if len(text[i]) < 1:
+            del text[i]
     return text
 
 
@@ -94,7 +99,7 @@ def getStopWords(word_collection):
 
         all_words[word] = total
 
-    generateGraph(all_words)    
+    #generateGraph(all_words)    
     return stop_words
 
 
@@ -123,7 +128,7 @@ def generateGraph(words):
     y = []
     
     for key, value in words.items():
-        if value >= avg*10:
+        if value >= avg*20:
             x.append(value)
             y.append(key)
    
@@ -175,11 +180,9 @@ def training(emails):
     global classes
     classes = len(word_collection.keys())
     
-    for email in emails:
-        for word in email.words:
-            setProbabilities(word_collection, word)
-
     
+    setProbabilities(word_collection)
+
 
     return word_collection
 
@@ -192,19 +195,21 @@ def training(emails):
 # P(W | NOT S) = prob_word_in_ham
 # P(NOT S) = prob_ham
 
-def setProbabilities(word_collection, word):
+def setProbabilities(word_collection):
    
-    prob_word_in_spam = word_collection[word]["spam"] / word_collection[word]["total"]
-    prob_word_in_ham = 1 - prob_word_in_spam
+    for word in word_collection.keys():
+
+        prob_word_in_spam = word_collection[word]["spam"] / word_collection[word]["total"]
+        prob_word_in_ham = 1 - prob_word_in_spam
    
-    total_emails = (spam_counter + ham_counter)
-    prob_spam = spam_counter / total_emails
-    prob_ham = ham_counter / total_emails
+        total_emails = (spam_counter + ham_counter)
+        prob_spam = spam_counter / total_emails
+        prob_ham = ham_counter / total_emails
 
-    result = ((prob_word_in_spam * prob_spam)) / ((prob_word_in_spam * prob_spam) + (prob_word_in_ham * prob_ham))
+        result = ((prob_word_in_spam * prob_spam)) / ((prob_word_in_spam * prob_spam) + (prob_word_in_ham * prob_ham))
 
-    result += laplace/classes
-    word_collection[word]["probability"] = result
+        result += laplace/classes
+        word_collection[word]["probability"] = result
 
 
 ## ------------------------- TESTE E AVALIAÇÃO ------------------------- ##
@@ -228,7 +233,7 @@ def test(word_collection, emails):
 
         if classify(p) == email.isSpam:
             score += 1
-        gScore += email.googleCsfc
+        gScore += int(email.googleCsfc)
     accuracy = score/len(emails)
     gAccuracy = gScore/len(emails)
     return accuracy, gAccuracy
@@ -251,6 +256,7 @@ def classify(prob):
     
 def main():
 
+    start = time.time()
     (email_list) = getData()
     (training_set, testing_set) = split_sets(email_list)
    
@@ -265,5 +271,16 @@ def main():
     print('Acurácia (sem stop-words): ', accuracy)
     print('Acurácia Gmail: ', gAccuracy)
 
+
+    file = open("saida.txt", "w")
+    for key in word_collection:
+        if word_collection[key]["total"] > 500:
+            file.write(key)
+            file.write(str(len(key)))
+            file.write("\n")
+
+    end = time.time()
+
+    print("Tempo de execução: ", end - start)
 
 main()
