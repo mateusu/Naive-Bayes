@@ -9,7 +9,7 @@ import time
 spam_counter = 0
 ham_counter = 0
 spam_classifier = 0.5
-stop_word_classifier = 300
+stop_word_classifier = 100
 laplace = 1
 classes = 0
 
@@ -99,7 +99,7 @@ def getStopWords(word_collection):
 
         all_words[word] = total
 
-    #generateGraph(all_words)    
+    generateGraph(all_words)    
     return stop_words
 
 
@@ -128,7 +128,7 @@ def generateGraph(words):
     y = []
     
     for key, value in words.items():
-        if value >= avg*20:
+        if value >= avg*10:
             x.append(value)
             y.append(key)
    
@@ -220,7 +220,11 @@ def test(word_collection, emails):
     
     score = 0
     gScore = 0
+    i = 1
     for email in emails:
+
+        print("Email "+ str(i) + ": ")
+        i += 1    
         p = []
         for word in email.words:
             
@@ -230,14 +234,54 @@ def test(word_collection, emails):
                 probability = laplace / classes
                 p.append(probability)
             
+        scored = False
 
         if classify(p) == email.isSpam:
+            scored = True
             score += 1
+
+        printResults(email, scored)
         gScore += int(email.googleCsfc)
     accuracy = score/len(emails)
     gAccuracy = gScore/len(emails)
     return accuracy, gAccuracy
 
+def printResults(email, scored):
+
+    if email.isSpam:
+        print("Tipo: spam")
+    else:
+        print("Tipo: ham")
+
+    if email.googleCsfc == 1:
+        if email.isSpam:
+            gsc = "spam"
+        else:
+            gsc = "ham"
+    else:
+        if email.isSpam:
+            gsc = "ham"
+        else:
+            gsc = "spam"
+
+    print("Classificação do google: " + gsc)
+
+    asc = ""
+    if email.isSpam:
+        if scored:
+            asc = "spam"
+        else:
+            asc = "ham"
+    
+    else:
+        if scored:
+            asc = "ham"
+        else:
+            asc = "spam"
+
+    print("Classificação do algoritmo: " + asc)
+    print('------------------------------------------------------------------------------------------')
+    print('')
 
 # Define a probabilidade de um email ser spam, dada a probabilidade de suas palavras serem spam
 # P(S) = P(S | W1) * ... * P(S | Wi) / ( P(S | W1) * ... * P(S | Wi) +  P(NOT S| W1) * ... * P(NOT S | Wi) )
@@ -274,9 +318,9 @@ def main():
 
     file = open("saida.txt", "w")
     for key in word_collection:
-        if word_collection[key]["total"] > 500:
+        if word_collection[key]["total"] > 100:
             file.write(key)
-            file.write(str(len(key)))
+            file.write(" " + str(word_collection[key]["total"]))
             file.write("\n")
 
     end = time.time()
